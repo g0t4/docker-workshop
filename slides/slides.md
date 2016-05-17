@@ -1,3 +1,29 @@
+## Concepts
+
+- **docker daemon** - the docker host that runs the docker engine. You interact with the docker daemon via the CLI binary `docker`, via a socker, or the HTTP API. The daemon is the server component. The client CLI can interact with both local and remote daemons. 
+- **image** - a piece of software to run, the files needed to run software in a container. images are referenced by name and tag. You can think of this as a template for a container. 
+- **dangling image** - no tag associated with image, often happens when rebuilding and reusing an existing tag
+- **layer** - images are built up from layers that store file changes relative to a parent layer. You can think of these like commits in a git repo, in fact each command in a Docker file creates a new layer as a commit behind the scenes. 
+- **tag** - a means of tagging different versions of an image, used for many purposes including versioning, and specifying different environments such as java with openjdk versus oracle jdk. Can think of like tags in git, as if every commit in git had to have a tag. Also can think of as package versions in npm. `latest` is used to denote the most recent version, used as default if no tag specified.
+- **container** - an instance of an image, a directory on disk with files, a running container is an app running from this directory with a high degree of isolation. A container's directory is made up of the layers in an image, these layers are read only. The container also has a read/write layer, by default, layered on top. This is accomplished via different UnionFS filesystems: aufs, btrfs, etc. You can find the directories involved with an image by looking in `/var/lib/docker.` Every call to `docker run` starts a new container. Docker abstracts managing containers for you, you focus on what you want to run, not how to safely run it as a container.  
+- **container state** - a container's state (running, exited, paused, restarting) correlates to whether or not a program is running from the container's filesystem.
+- **volume** - external storage, often on the docker host, that can be mounted into containers. Because UnionFS uses copy-on-write, it's not wise to store memory mapped files (common with databases) with a UnionFS, instead use volumes. 
+- **networks** - like physical networks, these allow you to isolate containers by controlling what networks they connect to. You can create user defined networks with `docker network create.`
+- **repository** - a collection of tagged images, much like a github repository, often one docker repository per git repository. Also much like an npm package. There's one repository per image name. 
+- **registry** - a collection of repositories, docker hub is a public/private registry, quay.io is another, much like npmjs.com. Registries are great for finding out what an image is meant to do, finding it's Dockerfile, finding it's source repository, # downloads, # stars (popularity), comments and instructions (README.md) on how to use an image.
+- 
+
+## Security
+
+- Prefer official images, then trusted images (means automatically built by registry, and you can see the Dockerfile used)
+- Treat things manually built with suspicion
+- Prefer images created by project maintainers
+- Always read Dockerfile, including referenced shell scripts. Look out for http or https with insecure, also watch out for suspicious binaries.
+- Know what's in the base image (hopefully it's an official image).
+- Lock down to a specific tag, but remember these can be changed. Can run private registry and pull reviewed images to it.
+
+- Run untrustworthy containers on their own network (`docker network create -d bridge X` and `docker run --net X`)
+- Rebuild images you don't trust
 
 ## Cleanup
 
@@ -14,6 +40,7 @@ docker ps -f 'status=exited' # list exited containers
 docker stop CONTAINER # for unused containers
 docker rm -v $(docker ps -qf 'status=exited') # -q is quiet mode - just the CID returned, -v remove the volumes too (be careful)
 docker rm -v $(docker ps -aq) # will remove everything not running, will error on running containers
+docker rm -fv CONTAINER # nuke container SIGKILL, remove volumes too
 
 # Images
 # Growth here is often from rebuilding images and reusing tags which results in dangling images (no longer have a tag because a new image has the tag).
@@ -32,6 +59,7 @@ docker volume rm $(docker volume ls -qf "dangling=true")
 # Networks (these would be removed when no longer needed, growth here would be from docker-compose which creates a new network per project)
 docker network ls
 docker network rm NETWORK 
+docker network rm $(docker network ls -q) # dangerous, remove all networks not used and not added by docker
 
 # Removing images
 docker rmi $(docker images -q)
