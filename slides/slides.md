@@ -41,6 +41,46 @@
   - UnionFS - read-only image layers, top layer is read-write
   - Volumes provide persistent storage and allow you to open up filesystem access (much like binding/publishing a port)
 
+## command line completion
+
+For a Mac with Bash:
+- [Install brew](https://brew.sh/)
+
+```
+
+# install bash-completion
+brew install bash-completion
+brew tap homebrew/completions
+
+# add this to ~/.bash_profile
+if [ -f $(brew --prefix)/etc/bash_completion ]; then
+  . $(brew --prefix)/etc/bash_completion
+fi
+
+# docker completion scripts (not documented in docs)
+curl -L https://raw.githubusercontent.com/docker/docker/master/contrib/completion/bash/docker > `brew --prefix`/etc/bash_completion.d/docker 
+
+# docker-compose completion scripts
+curl -L https://raw.githubusercontent.com/docker/compose/$(docker-compose version --short)/contrib/completion/bash/docker-compose > `brew --prefix`/etc/bash_completion.d/docker-compose
+
+# docker-machine completion scripts
+files=(docker-machine docker-machine-wrapper docker-machine-prompt)
+for f in "${files[@]}"; do
+  curl -L https://raw.githubusercontent.com/docker/machine/v$(docker-machine --version | tr -ds ',' ' ' | awk 'NR==1{print $(3)}')/contrib/completion/bash/$f.bash > `brew --prefix`/etc/bash_completion.d/$f
+done
+
+# see what completions you have with brew
+ls `brew --prefix`/etc/bash_completion.d/
+
+# remove docker completion scripts
+rm `brew --prefix`/etc/bash_completion.d/docker
+
+```
+- [Brew auto completions for many programs](https://github.com/Homebrew/homebrew-completions) Careful some of these are older than current versions of docker.
+- [Docker Machine completion, check here for updates](https://docs.docker.com/machine/completion/)
+- [Docker Compose completion, check here for updates](https://docs.docker.com/compose/completion/)
+- [Docker Engine completion, check here for updates, not in docs](https://github.com/docker/docker/blob/master/contrib/completion/bash/docker)
+
 ## Cleanup
 
 ```
@@ -286,12 +326,38 @@ https://docs.docker.com/engine/reference/commandline/events/
 ## Managing VMs
 
 ```
-eval $(docker-machine env)
-docker-machine ls
-docker-machine ssh MACHINE # ssh into a machine
-docker-machine create
+# Connecting to docker daemon
+docker-machine start MACHINE
+eval $(docker-machine env [MACHINE])
+docker-machine.exe env --shell=powershell [MACHINE] | Invoke-Expression
+docker-machine.exe env --shell cmd [MACHINE]
+
+docker-machine ls # best status command, shows all machines, active machine - means connected to via env, state of each
+
+docker-machine env [MACHINE] # Get environment variables for a machine
+docker-machine ip [MACHINE] # Get ip of machine, useful for connecting to bound ports
+
+# working with the VM easily
+docker-machine ssh [MACHINE] # ssh into a machine, magical
+docker-machine scp MACHINE:/path /host/path # scp files! can flip arguments for copying either direction, this is not scp to containers, this is scp to the docker host VM
+docker-machine inspect [MACHINE]
+
+docker-machine create -d virtualbox NAME # create a new machine
+docker-machine create -d virtualbox # show driver options for virtualbox
+docker-machine upgrade [MACHINE]
+docker-machine stop [MACHINE]
+docker-machine restart [MACHINE]
+docker-machine kill [MACHINE]
+docker-machine rm -y [MACHINE]
+
 ```
+- More docker-machine commands [here](https://docs.docker.com/machine/reference/).
+- Driver options [here](https://docs.docker.com/machine/drivers)
+- Most commands will use `default` as the name if no machine name specified
+- docker-machine sets up secure communications with machines
 - Can always look at underlying virtualization's VM library and configure advanced functionality of VMs like bridged network adapters to expose containers for remote access.
 - docker-machine sets two disks in VM, one is boot2docker which is read-only, another is a mount point for docker data/volumes
 - With docker-machine you can only map volumes in your USER directory (both windows/mac)
 - Docker for Windows and Mac will be a new way to run containers, won't obviate docker-machine as it does other things like provision in the cloud and setup swarm clusters.
+- [docker-machine env](https://docs.docker.com/machine/reference/env/)
+
