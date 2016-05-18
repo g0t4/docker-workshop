@@ -11,7 +11,6 @@
 - **networks** - like physical networks, these allow you to isolate containers by controlling what networks they connect to. You can create user defined networks with `docker network create.`
 - **repository** - a collection of tagged images, much like a github repository, often one docker repository per git repository. Also much like an npm package. There's one repository per image name. 
 - **registry** - a collection of repositories, docker hub is a public/private registry, quay.io is another, much like npmjs.com. Registries are great for finding out what an image is meant to do, finding it's Dockerfile, finding it's source repository, # downloads, # stars (popularity), comments and instructions (README.md) on how to use an image.
-- 
 
 ## Security
 
@@ -24,6 +23,23 @@
 
 - Run untrustworthy containers on their own network (`docker network create -d bridge X` and `docker run --net X`)
 - Rebuild images you don't trust
+
+## Isolation
+
+- PID namespace isolation for process isolation.
+- Network modes for containers
+  - bridge (default) - use `docker run --net NETWORK` - container has loopback and interface to access to named networks (default connected to `bridge` network), any container on the network(s), a container is connected to, can access the bridge container
+  - none - use `docker run --net none` container is isolated from all networks, only has loopback interface
+  - joined - use `docker run --net container:CONTAINER` - two+ containers can share interfaces, joined container will share interfaces with existing container.
+  - host - use `docker run --net host` - container binds directly to host network interface (no network isolation here, be careful)
+  - within a network, there's no firewall, all ports are accessible, not just "exposed" ports
+  - avoid linking, it's legacy for the default bridge network, use user defined networks to isolate container networks
+  - publishing ports - binding on host allows remote access to containers
+- File System isolation
+  - chroot used to run container in the context of the container's directory
+  - MNT namespace - essentially a union of isolated mounts forms the container's filesystem
+  - UnionFS - read-only image layers, top layer is read-write
+  - Volumes provide persistent storage and allow you to open up filesystem access (much like binding/publishing a port)
 
 ## Cleanup
 
@@ -103,24 +119,42 @@ docker tag IMAGE[:TAG] [REGISTRYHOST/][USERNAME/]NAME[:TAG]
 docker push IMAGE
 
 docker rmi IMAGE
+
+# layer history, image sleuthing
+docker history IMAGE
+
 ```
 - Name Format: [REGISTRY_HOST[:REGISTRY_PORT]/]NAME[:TAG]
 - [`docker export`](https://docs.docker.com/engine/reference/commandline/export/)
 - [`docker images`](https://docs.docker.com/engine/reference/commandline/images/)
 - [`docker load`](https://docs.docker.com/engine/reference/commandline/load/)
 - [`docker pull`](https://docs.docker.com/engine/reference/commandline/pull/)
+- [docker history](https://docs.docker.com/engine/reference/commandline/history/)
 
 ### Managing containers
 
 ```
+docker help
+docker help run
 
 docker create # same as run, just doesn't start container
 docker run IMAGE # create and start a container, run given command
+docker run -d IMAGE # run detached
+docker run -it IMAGE sh # run container with an interactive shell 
 docker run --rm IMAGE # remove container, and volumes, when stopped
-
+  # -e "VAR=VALUE" # use this to specify environment variable values, can have multiple
+  # --name NAME # use this to specify an explicit name, otherwise randomly generated
+  # -p "hostport:containerport" # publish a container port to a specific host port
+  # -p "containerport" #publish container port to dynamic host port
+  # -p "ip:hostport:containerport" # publish a container port and bind to specific ip specified (listen)
+  # --net NETWORK # specify what network to connect to
+  # -v "hostpath:containerpath" # mount host directory at container path, must be absolute paths
+  # -v "containerpath" # mount a docker managed volume at the container path
+  # --restart always # set restart value (never, always, **always-unless-stopped**)
 docker ps
 docker ps -a
 docker ps -f "status=exited"
+ # Use kitematic to find out what's running, also can find ports, volumes, env variables easily too.
 
 docker inspect CONTAINER # verbose details about a container
 docker inspect --format="{{.Mounts}}" CONTAINER
@@ -134,7 +168,7 @@ docker exec CONTAINER ps aux # run ps in container
 docker update CONTAINER # mostly used to update constraints
 docker rename CONTAINER NEWNAME
 
-# stop sends SIGTERM first, then after grace period sends SIGKILL
+ # stop sends SIGTERM first, then after grace period sends SIGKILL
 docker stop CONTAINER # can lead a container, and its volumes, to be removed if it was started with --rm
 docker start CONTAINER
 docker restart CONTAINER
@@ -147,31 +181,15 @@ docker rm -v CONTAINER # remove a container and its volumes
 
 docker wait CONTAINER # wait for a container to stop
 
+docker info #system wide information, # containers
+docker version
 ```
 - Most commands allow you to pass multiple containers (for changing state, removing, etc)
 - [`docker run`](https://docs.docker.com/engine/reference/commandline/run/)
 - [`docker create`](https://docs.docker.com/engine/reference/commandline/create/)
 - [`docker kill`](https://docs.docker.com/engine/reference/commandline/kill/)
-
-### Find out what's running
-
-```
-docker info #system wide information, # containers
-docker version
-
-```
 - [docker ps](https://docs.docker.com/engine/reference/commandline/ps/)
 - [docker inspect](https://docs.docker.com/engine/reference/commandline/inspect/)
-
-### Tell me more about an image
-
-```
-
-# layer history
-docker history IMAGE
-
-```
-- [docker history](https://docs.docker.com/engine/reference/commandline/history/)
 
 ## What went wrong!
 
@@ -235,15 +253,20 @@ docker volume ls
 docker volume inspect VOLUME # see what containers are using the volume
 docker volume rm VOLUME
 
-*** put commands for volume containers in here
+**review** put commands for volume containers in here
 ```
+
+- two types of volumes
+  - bind mount - user specifies location on host
+  - docker managed mount - docker manages "anonymous" location on host
+- other drivers can provide portability of volumes
 
 ## Managing networks
 
 ```
 docker network ls
 
-docker network inspect NETWORK # see connected containers
+docker network inspect NETWORK # see connected containers, address range, gateway
 
 docker network create -d bridge NETWORK # Create a user defined bridge network
 docker network rm NETWORK
@@ -263,7 +286,12 @@ https://docs.docker.com/engine/reference/commandline/events/
 ## Managing VMs
 
 ```
+eval $(docker-machine env)
 docker-machine ls
 docker-machine ssh MACHINE # ssh into a machine
 docker-machine create
 ```
+- Can always look at underlying virtualization's VM library and configure advanced functionality of VMs like bridged network adapters to expose containers for remote access.
+- docker-machine sets two disks in VM, one is boot2docker which is read-only, another is a mount point for docker data/volumes
+- With docker-machine you can only map volumes in your USER directory (both windows/mac)
+- Docker for Windows and Mac will be a new way to run containers, won't obviate docker-machine as it does other things like provision in the cloud and setup swarm clusters.
